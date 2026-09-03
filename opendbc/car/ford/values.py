@@ -117,6 +117,10 @@ class FordF150LightningPlatform(FordCANFDPlatformConfig):
 
 
 class CAR(Platforms):
+  FORD_BRONCO_MK6 = FordPlatformConfig(
+    [FordCarDocs("Ford Bronco 2021-24")],
+    CarSpecs(mass=1949, wheelbase=2.55, steerRatio=17.0),
+  )
   FORD_BRONCO_SPORT_MK1 = FordPlatformConfig(
     [FordCarDocs("Ford Bronco Sport 2021-24")],
     CarSpecs(mass=1625, wheelbase=2.67, steerRatio=17.7),
