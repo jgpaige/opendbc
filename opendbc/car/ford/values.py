@@ -97,6 +97,13 @@ class FordPlatformConfig(PlatformConfig):
 
 
 @dataclass
+class FordNoRadarPlatformConfig(FordPlatformConfig):
+  dbc_dict: DbcDict = field(default_factory=lambda: {
+    Bus.pt: 'ford_lincoln_base_pt',
+  })
+
+
+@dataclass
 class FordCANFDPlatformConfig(FordPlatformConfig):
   dbc_dict: DbcDict = field(default_factory=lambda: {
     Bus.pt: 'ford_lincoln_base_pt',
@@ -117,7 +124,7 @@ class FordF150LightningPlatform(FordCANFDPlatformConfig):
 
 
 class CAR(Platforms):
-  FORD_BRONCO_MK6 = FordPlatformConfig(
+  FORD_BRONCO_MK6 = FordNoRadarPlatformConfig(
     [FordCarDocs("Ford Bronco 2021-24")],
     CarSpecs(mass=1949, wheelbase=2.55, steerRatio=17.0),
   )
