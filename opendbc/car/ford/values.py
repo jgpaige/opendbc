@@ -47,6 +47,7 @@ class FordSafetyFlags(IntFlag):
 class FordFlags(IntFlag):
   # Static flags
   CANFD = 1
+  ALLOW_NON_ADAPTIVE = 2
 
 
 class RADAR:
@@ -101,6 +102,10 @@ class FordNoRadarPlatformConfig(FordPlatformConfig):
   dbc_dict: DbcDict = field(default_factory=lambda: {
     Bus.pt: 'ford_lincoln_base_pt',
   })
+
+  def init(self):
+    super().init()
+    self.flags |= FordFlags.ALLOW_NON_ADAPTIVE
 
 
 @dataclass
