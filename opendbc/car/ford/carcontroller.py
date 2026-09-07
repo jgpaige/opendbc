@@ -5,6 +5,7 @@ from opendbc.car import ACCELERATION_DUE_TO_GRAVITY, Bus, DT_CTRL, apply_hystere
 from opendbc.car.ford import fordcan
 from opendbc.car.ford.values import CarControllerParams, FordFlags, CAR
 from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
+from opendbc.opendbc.car import carlog
 
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
@@ -114,6 +115,8 @@ class CarController(CarControllerBase):
     if self.CP.openpilotLongitudinalControl and (self.frame % CarControllerParams.ACC_CONTROL_STEP) == 0:
       accel = actuators.accel
       gas = accel
+
+      carlog.error(f'BRONCO_DEBUG: accel={accel:.3f} longActive={CC.longActive} enabled={CC.enabled}')
 
       if CC.longActive:
         # Compensate for engine creep at low speed.
