@@ -33,6 +33,11 @@ def apply_creep_compensation(accel: float, v_ego: float) -> float:
   return float(accel)
 
 
+def apply_ford_angle(desired_angle, CS):
+  apply_angle = desired_angle - CS.out.steeringAngleDeg
+  return float(np.clip(apply_angle, -5.8, 5.8))
+
+
 class CarController(CarControllerBase):
   def __init__(self, dbc_names, CP):
     super().__init__(dbc_names, CP)
@@ -106,9 +111,17 @@ class CarController(CarControllerBase):
       else:
         can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, 0., 0., -self.apply_curvature_last, 0.))
 
+    apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
+
     # send lka msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:
-      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN))
+      if CC.latActive:
+        new_direction = 2 if CS.out.steeringAngleDeg > 0 else 4
+      else:
+        new_direction = 0
+      ramp_type = 1 if abs(apply_angle) >= 5 else 0
+      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive,
+                                              apply_angle, -self.apply_curvature_last, new_direction, ramp_type))
 
     ### longitudinal control ###
     # send acc msg at 50Hz

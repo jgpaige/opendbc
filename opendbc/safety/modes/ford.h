@@ -86,6 +86,8 @@ static bool ford_get_quality_flag_valid(const CANPacket_t *msg) {
 
 #define FORD_CANFD_INACTIVE_CURVATURE_RATE 1024U
 
+static bool ford_allow_lka_action = false;
+
 static const CurvatureSteeringLimits FORD_STEERING_LIMITS = {
   .max_curvature = 1000,              // 0.02 rad/m * curvature_to_can
   .curvature_to_can = 50000,          // CAN units per rad/m
@@ -216,7 +218,7 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
     // values such as the steering angle or lane curvature for debugging,
     // but the action (LkaActvStats_D2_Req) must be set to zero.
     unsigned int action = msg->data[0] >> 5;
-    if (action != 0U) {
+    if (action != 0U && !ford_allow_lka_action) {
       tx = false;
     }
   }
@@ -309,7 +311,9 @@ static safety_config ford_init(uint16_t param) {
   };
 
   const uint16_t FORD_PARAM_CANFD = 2;
+  const uint16_t FORD_PARAM_ALLOW_LKA_ACTION = 4;
   const bool ford_canfd = GET_FLAG(param, FORD_PARAM_CANFD);
+  ford_allow_lka_action = GET_FLAG(param, FORD_PARAM_ALLOW_LKA_ACTION);
 
   safety_config ret;
   if (ford_canfd) {
