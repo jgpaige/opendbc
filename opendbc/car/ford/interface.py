@@ -56,11 +56,11 @@ class CarInterface(CarInterfaceBase):
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True
 
-    if ret.flags & FordFlags.CANFD:
-      ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.CANFD.value
-
     if candidate == CAR.FORD_BRONCO_MK6:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.ALLOW_LKA_ACTION.value
+
+    if ret.flags & FordFlags.CANFD:
+      ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.CANFD.value
 
       # TRON (SecOC) platforms are not supported
       # LateralMotionControl2, ACCDATA are 16 bytes on these platforms
