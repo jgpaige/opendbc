@@ -118,10 +118,10 @@ class CarController(CarControllerBase):
         can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, 0., 0., -self.apply_curvature_last, 0.))
 
     apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
-    MAX_ANGLE_STEP = 0.5
+
+    MAX_ANGLE_STEP = 1.5
     angle_delta = float(np.clip(apply_angle - self.apply_angle_last, -MAX_ANGLE_STEP, MAX_ANGLE_STEP))
     apply_angle = self.apply_angle_last + angle_delta
-    self.apply_angle_last = apply_angle
 
     LOCKOUT_AVOID_SENDS = 210
     LOCKOUT_RESET_SENDS = 10
@@ -145,6 +145,8 @@ class CarController(CarControllerBase):
       else:
         new_direction = 0
         apply_angle_out = 0.0
+
+      self.apply_angle_last = apply_angle_out
 
       ramp_type = 1 if abs(apply_angle_out) >= 5 else 0
       can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive,
