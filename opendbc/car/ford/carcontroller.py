@@ -119,7 +119,7 @@ class CarController(CarControllerBase):
 
     apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
 
-    MAX_ANGLE_STEP = 1.5
+    MAX_ANGLE_STEP = 0.8
     angle_delta = float(np.clip(apply_angle - self.apply_angle_last, -MAX_ANGLE_STEP, MAX_ANGLE_STEP))
     apply_angle = self.apply_angle_last + angle_delta
 
@@ -149,7 +149,7 @@ class CarController(CarControllerBase):
       self.apply_angle_last = apply_angle_out
 
       ramp_type = 1 if abs(apply_angle_out) >= 5 else 0
-      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive,
+      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive and not self.lka_resetting,
                                               apply_angle_out, -self.apply_curvature_last, new_direction, ramp_type))
     
     ### longitudinal control ###
