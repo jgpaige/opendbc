@@ -56,6 +56,7 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = None
     self.lka_reset_start_ns = None
     self.lka_steer_start_ns = None
+    self.apply_direction_last = 0
     self.distance_bar_frame = 0
     self.apply_curvature_last = 0
     self.apply_angle_last = 0.0
@@ -119,12 +120,15 @@ class CarController(CarControllerBase):
 
     apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
 
-    MAX_ANGLE_STEP = 0.8
+    MAX_ANGLE_STEP = 1.2
     angle_delta = float(np.clip(apply_angle - self.apply_angle_last, -MAX_ANGLE_STEP, MAX_ANGLE_STEP))
     apply_angle = self.apply_angle_last + angle_delta
+    new_direction = 2 if apply_angle > 0 else 4
 
     LOCKOUT_AVOID_NS = 6_500_000_000
     LOCKOUT_RESET_NS = 350_000_000
+    ANGLE_QUIET_THRESHOLD = 0.5  # degrees considered close to on course
+    EARLY_RESET_FRACTION = 0.6 # when lka is sending low values near this percent to lockout
 
     # send steer msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:
@@ -135,23 +139,28 @@ class CarController(CarControllerBase):
         if now_nanos - self.lka_reset_start_ns >= LOCKOUT_RESET_NS:
           self.lka_resetting = False
           self.lka_reset_start_ns = None
-          self.lka_steer_start = now_nanos
+          self.lka_steer_start_ns = now_nanos
       else:
         if self.lka_steer_start_ns is None:
           self.lka_steer_start_ns = now_nanos
 
-        if now_nanos - self.lka_steer_start_ns >= LOCKOUT_AVOID_NS:
+        elapsed_active_ns = now_nanos - self.lka_steer_start_ns
+        near_threshold = elapsed_active_ns / LOCKOUT_AVOID_NS >= EARLY_RESET_FRACTION
+        angle_quiet = abs(apply_angle) <= ANGLE_QUIET_THRESHOLD
+        direction_flip = self.apply_direction_last != 0 and self.apply_direction_last != new_direction
+
+        if elapsed_active_ns >= LOCKOUT_AVOID_NS or (near_threshold and angle_quiet) or direction_flip:
           self.lka_resetting = True
           self.lka_steer_start_ns = None
      
       if CC.latActive and not self.lka_resetting:
-        new_direction = 2 if apply_angle > 0 else 4
         apply_angle_out = apply_angle
       else:
         new_direction = 0
         apply_angle_out = 0.0
 
       self.apply_angle_last = apply_angle_out
+      self.apply_direction_last = new_direction
 
       ramp_type = 1 if abs(apply_angle_out) >= 5 else 0
       can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive and not self.lka_resetting,
