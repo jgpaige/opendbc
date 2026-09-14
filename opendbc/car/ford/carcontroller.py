@@ -52,8 +52,14 @@ class CarController(CarControllerBase):
     self.main_on_last = False
     self.lkas_enabled_last = False
     self.steer_alert_last = False
+    self.lka_resetting = False
     self.lead_distance_bars_last = None
     self.distance_bar_frame = 0
+    self.apply_curvature_last = 0
+    self.apply_angle_last = 0.0
+    self.anti_overshoot_curvature_last = 0
+    self.lka_send_count = 0
+    self.lka_reset_count = 0
 
   def update(self, CC, CS, now_nanos):
     can_sends = []
@@ -111,17 +117,45 @@ class CarController(CarControllerBase):
       else:
         can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, 0., 0., -self.apply_curvature_last, 0.))
 
-    apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
+      apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
 
-    # send lka msg at 33Hz
-    if (self.frame % CarControllerParams.LKA_STEP) == 0:
-      if CC.latActive:
-        new_direction = 2 if CS.out.steeringAngleDeg > 0 else 4
-      else:
-        new_direction = 0
-      ramp_type = 1 if abs(apply_angle) >= 5 else 0
-      can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive,
-                                              apply_angle, -self.apply_curvature_last, new_direction, ramp_type))
+      # rate limit the commanded angle so it can't jump between frames,
+      # same idea as apply_curvature's rate limiting above
+      MAX_ANGLE_STEP = 0.5  # degrees per 33Hz frame - starting point, needs tuning
+      angle_delta = float(np.clip(apply_angle - self.apply_angle_last, -MAX_ANGLE_STEP, MAX_ANGLE_STEP))
+      apply_angle = self.apply_angle_last + angle_delta
+      self.apply_angle_last = apply_angle
+
+      LOCKOUT_AVOID_SENDS = 210   # ~6.4s at 33Hz, real margin under the observed 6-9s cluster
+      LOCKOUT_RESET_SENDS = 10    # ~300ms at 33Hz
+
+      # send lka msg at 33Hz
+      if (self.frame % CarControllerParams.LKA_STEP) == 0:
+        if CC.latActive:
+          self.lka_send_count += 1
+        else:
+          self.lka_send_count = 0
+          self.lka_resetting = False
+
+        if self.lka_send_count >= LOCKOUT_AVOID_SENDS:
+          self.lka_resetting = True
+          self.lka_send_count = 0
+
+        if self.lka_resetting:
+          self.lka_reset_count += 1
+          new_direction = 0
+          apply_angle_out = 0.0
+          if self.lka_reset_count >= LOCKOUT_RESET_SENDS:
+            self.lka_resetting = False
+            self.lka_reset_count = 0
+        else:
+          new_direction = 2 if apply_angle > 0 else 4
+          apply_angle_out = apply_angle
+
+
+        ramp_type = 1 if abs(apply_angle) >= 5 else 0
+        can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive,
+                                                apply_angle, -self.apply_curvature_last, new_direction, ramp_type))
 
     ### longitudinal control ###
     # send acc msg at 50Hz
