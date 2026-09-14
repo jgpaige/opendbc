@@ -54,12 +54,12 @@ class CarController(CarControllerBase):
     self.steer_alert_last = False
     self.lka_resetting = False
     self.lead_distance_bars_last = None
+    self.lka_reset_start_ns = None
+    self.lka_steer_start_ns = None
     self.distance_bar_frame = 0
     self.apply_curvature_last = 0
     self.apply_angle_last = 0.0
     self.anti_overshoot_curvature_last = 0
-    self.lka_send_count = 0
-    self.lka_reset_count = 0
 
   def update(self, CC, CS, now_nanos):
     can_sends = []
@@ -123,23 +123,28 @@ class CarController(CarControllerBase):
     angle_delta = float(np.clip(apply_angle - self.apply_angle_last, -MAX_ANGLE_STEP, MAX_ANGLE_STEP))
     apply_angle = self.apply_angle_last + angle_delta
 
-    LOCKOUT_AVOID_SENDS = 210
-    LOCKOUT_RESET_SENDS = 10
+    LOCKOUT_AVOID_NS = 6_500_000_000
+    LOCKOUT_RESET_NS = 350_000_000
 
+    # send steer msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:
-      self.lka_send_count += 1
-      if self.lka_send_count >= LOCKOUT_AVOID_SENDS:
-        self.lka_resetting = True
-        self.lka_send_count = 0
-
       if self.lka_resetting:
-        self.lka_reset_count += 1
-        new_direction = 0
-        apply_angle_out = 0.0
-        if self.lka_reset_count >= LOCKOUT_RESET_SENDS:
+        if self.lka_reset_start_ns is None:
+          self.lka_reset_start_ns = now_nanos
+
+        if now_nanos - self.lka_reset_start_ns >= LOCKOUT_RESET_NS:
           self.lka_resetting = False
-          self.lka_reset_count = 0
-      elif CC.latActive:
+          self.lka_reset_start_ns = None
+          self.lka_steer_start = now_nanos
+      else:
+        if self.lka_steer_start_ns is None:
+          self.lka_steer_start_ns = now_nanos
+
+        if now_nanos - self.lka_steer_start_ns >= LOCKOUT_AVOID_NS:
+          self.lka_resetting = True
+          self.lka_steer_start_ns = None
+     
+      if CC.latActive and not self.lka_resetting:
         new_direction = 2 if apply_angle > 0 else 4
         apply_angle_out = apply_angle
       else:
