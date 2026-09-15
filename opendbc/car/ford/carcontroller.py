@@ -56,7 +56,6 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = None
     self.lka_reset_start_ns = None
     self.lka_steer_start_ns = None
-    self.apply_direction_last = 0
     self.distance_bar_frame = 0
     self.apply_curvature_last = 0
     self.apply_angle_last = 0.0
@@ -147,9 +146,8 @@ class CarController(CarControllerBase):
         elapsed_active_ns = now_nanos - self.lka_steer_start_ns
         near_threshold = elapsed_active_ns / LOCKOUT_AVOID_NS >= EARLY_RESET_FRACTION
         angle_quiet = abs(apply_angle) <= ANGLE_QUIET_THRESHOLD
-        direction_flip = self.apply_direction_last != 0 and self.apply_direction_last != new_direction
 
-        if elapsed_active_ns >= LOCKOUT_AVOID_NS or (near_threshold and angle_quiet) or direction_flip:
+        if elapsed_active_ns >= LOCKOUT_AVOID_NS or (near_threshold and angle_quiet):
           self.lka_resetting = True
           self.lka_steer_start_ns = None
      
