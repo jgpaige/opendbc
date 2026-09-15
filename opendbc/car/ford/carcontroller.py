@@ -118,10 +118,6 @@ class CarController(CarControllerBase):
         can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, 0., 0., -self.apply_curvature_last, 0.))
 
     apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
-
-    MAX_ANGLE_STEP = 1.2
-    angle_delta = float(np.clip(apply_angle - self.apply_angle_last, -MAX_ANGLE_STEP, MAX_ANGLE_STEP))
-    apply_angle = self.apply_angle_last + angle_delta
     new_direction = 2 if apply_angle > 0 else 4
 
     LOCKOUT_AVOID_NS = 6_500_000_000
@@ -151,18 +147,16 @@ class CarController(CarControllerBase):
           self.lka_resetting = True
           self.lka_steer_start_ns = None
      
-      if CC.latActive and not self.lka_resetting:
-        apply_angle_out = apply_angle
-      else:
+      if not CC.latActive or self.lka_resetting:
         new_direction = 0
-        apply_angle_out = 0.0
+        apply_angle = 0.0        
 
-      self.apply_angle_last = apply_angle_out
+      self.apply_angle_last = apply_angle
       self.apply_direction_last = new_direction
 
-      ramp_type = 1 if abs(apply_angle_out) >= 5 else 0
+      ramp_type = 1 if abs(apply_angle) >= 5 else 0
       can_sends.append(fordcan.create_lka_msg(self.packer, self.CAN, CC.latActive and not self.lka_resetting,
-                                              apply_angle_out, -self.apply_curvature_last, new_direction, ramp_type))
+                                              apply_angle, -self.apply_curvature_last, new_direction, ramp_type))
     
     ### longitudinal control ###
     # send acc msg at 50Hz
@@ -233,6 +227,7 @@ class CarController(CarControllerBase):
     new_actuators.curvature = self.apply_curvature_last
     new_actuators.accel = self.accel
     new_actuators.gas = self.gas
+    new_actuators.steeringAngleDeg = self.apply_angle_last
 
     self.frame += 1
     return new_actuators, can_sends
