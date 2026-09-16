@@ -239,7 +239,7 @@ class CarController(CarControllerBase):
     new_actuators.curvature = self.apply_curvature_last
     new_actuators.accel = self.accel
     new_actuators.gas = self.gas
-    new_actuators.steeringAngleDeg = self.apply_angle_last
+    new_actuators.steeringAngleDeg = self.apply_angle_last + CS.out.steeringAngleDeg
 
     self.frame += 1
     return new_actuators, can_sends
