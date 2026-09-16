@@ -39,6 +39,8 @@ def apply_ford_angle(desired_angle, CS):
 
 
 class CarController(CarControllerBase):
+  LKA_LOCKOUT_WINDOW_SIZE = 30
+
   def __init__(self, dbc_names, CP):
     super().__init__(dbc_names, CP)
     self.packer = CANPacker(dbc_names[Bus.pt])
@@ -54,18 +56,21 @@ class CarController(CarControllerBase):
     self.steer_alert_last = False
     self.lka_resetting = False
     self.lead_distance_bars_last = None
-    self.lka_reset_start_ns = None
     self.lka_steer_start_ns = None
+    self.lka_previously_available = True
     self.distance_bar_frame = 0
     self.apply_curvature_last = 0
     self.apply_angle_last = 0.0
     self.anti_overshoot_curvature_last = 0
+    self.lka_until_lockout_ns = [10_000_000_000 for i in range(self.LKA_LOCKOUT_WINDOW_SIZE)]
+    self.lka_until_lockout_counter = 0
 
   def update(self, CC, CS, now_nanos):
     can_sends = []
 
     actuators = CC.actuators
     hud_control = CC.hudControl
+    lkas_available = getattr(CS, "lkas_available", True)
 
     main_on = CS.out.cruiseState.available
     steer_alert = hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw)
@@ -120,34 +125,41 @@ class CarController(CarControllerBase):
     apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
     new_direction = 2 if apply_angle > 0 else 4
 
-    LOCKOUT_AVOID_NS = 6_500_000_000
-    LOCKOUT_RESET_NS = 350_000_000
     ANGLE_QUIET_THRESHOLD = 0.5  # degrees considered close to on course
     EARLY_RESET_FRACTION = 0.6 # when lka is sending low values near this percent to lockout
 
+    estimated_until_lockout_ns = sum(self.lka_until_lockout_ns) / self.LKA_LOCKOUT_WINDOW_SIZE
+
     # send steer msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:
-      if self.lka_resetting:
-        if self.lka_reset_start_ns is None:
-          self.lka_reset_start_ns = now_nanos
+      if CC.latActive:
+        if lkas_available:
+          self.lka_previously_available = True
+          if self.lka_resetting:
+            self.lka_resetting = False
+            self.lka_steer_start_ns = now_nanos
 
-        if now_nanos - self.lka_reset_start_ns >= LOCKOUT_RESET_NS:
-          self.lka_resetting = False
-          self.lka_reset_start_ns = None
-          self.lka_steer_start_ns = now_nanos
-      else:
-        if self.lka_steer_start_ns is None:
-          self.lka_steer_start_ns = now_nanos
+          if self.lka_steer_start_ns is None:
+            self.lka_steer_start_ns = now_nanos          
 
-        elapsed_active_ns = now_nanos - self.lka_steer_start_ns
-        near_threshold = elapsed_active_ns / LOCKOUT_AVOID_NS >= EARLY_RESET_FRACTION
-        angle_quiet = abs(apply_angle) <= ANGLE_QUIET_THRESHOLD
+          elapsed_active_ns = now_nanos - self.lka_steer_start_ns
+          near_threshold = elapsed_active_ns / estimated_until_lockout_ns >= EARLY_RESET_FRACTION
+          angle_quiet = abs(apply_angle) <= ANGLE_QUIET_THRESHOLD
 
-        if elapsed_active_ns >= LOCKOUT_AVOID_NS or (near_threshold and angle_quiet):
+          if elapsed_active_ns >= estimated_until_lockout_ns or (near_threshold and angle_quiet):
+            self.lka_resetting = True
+            self.lka_steer_start_ns = None
+        elif self.lka_previously_available:
+          self.lka_previously_available = False
+          self.lka_until_lockout_ns[self.lka_until_lockout_counter] = now_nanos - self.lka_steer_start_ns
+          self.lka_until_lockout_counter = (self.lka_until_lockout_counter + 1) % self.LKA_LOCKOUT_WINDOW_SIZE
           self.lka_resetting = True
           self.lka_steer_start_ns = None
-     
-      if not CC.latActive or self.lka_resetting:
+        else:
+          new_direction = 0
+          apply_angle = 0.0 
+
+      else:
         new_direction = 0
         apply_angle = 0.0        
 
