@@ -58,6 +58,7 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = None
     self.lka_steer_start_ns = None
     self.lka_previously_available = True
+    self.lka_early_reset_count = 0
     self.distance_bar_frame = 0
     self.apply_curvature_last = 0
     self.apply_angle_last = 0.0
@@ -127,6 +128,7 @@ class CarController(CarControllerBase):
 
     ANGLE_QUIET_THRESHOLD = 0.5  # degrees considered close to on course
     EARLY_RESET_FRACTION = 0.6 # when lka is sending low values near this percent to lockout
+    EARLY_RESET_CONSECUTIVE_LIMIT = 5
 
     estimated_until_lockout_ns = sum(self.lka_until_lockout_ns) / self.LKA_LOCKOUT_WINDOW_SIZE
 
@@ -146,15 +148,17 @@ class CarController(CarControllerBase):
           near_threshold = elapsed_active_ns / estimated_until_lockout_ns >= EARLY_RESET_FRACTION
           angle_quiet = abs(apply_angle) <= ANGLE_QUIET_THRESHOLD
 
-          if elapsed_active_ns >= estimated_until_lockout_ns or (near_threshold and angle_quiet):
+          if near_threshold and angle_quiet and self.lka_early_reset_count < EARLY_RESET_CONSECUTIVE_LIMIT:
             self.lka_resetting = True
             self.lka_steer_start_ns = None
+            self.lka_early_reset_count += 1
         elif self.lka_previously_available and self.lka_steer_start_ns is not None:
           self.lka_previously_available = False
           self.lka_until_lockout_ns[self.lka_until_lockout_counter] = now_nanos - self.lka_steer_start_ns
           self.lka_until_lockout_counter = (self.lka_until_lockout_counter + 1) % self.LKA_LOCKOUT_WINDOW_SIZE
           self.lka_resetting = True
           self.lka_steer_start_ns = None
+          self.lka_early_reset_count = 0
         else:
           new_direction = 0
           apply_angle = 0.0 
