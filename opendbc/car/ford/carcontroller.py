@@ -124,6 +124,10 @@ class CarController(CarControllerBase):
         can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, 0., 0., -self.apply_curvature_last, 0.))
 
     apply_angle = apply_ford_angle(actuators.steeringAngleDeg, CS)
+
+    MAX_ANGLE_STEP = 0.7  # degrees per 33Hz frame
+    angle_delta = float(np.clip(apply_angle - self.apply_angle_last, -MAX_ANGLE_STEP, MAX_ANGLE_STEP))
+    apply_angle = self.apply_angle_last + angle_delta
     new_direction = 2 if apply_angle > 0 else 4
 
     ANGLE_QUIET_THRESHOLD = 0.5  # degrees considered close to on course
@@ -146,7 +150,7 @@ class CarController(CarControllerBase):
 
           elapsed_active_ns = now_nanos - self.lka_steer_start_ns
           near_threshold = elapsed_active_ns / estimated_until_lockout_ns >= EARLY_RESET_FRACTION
-          angle_quiet = abs(apply_angle) <= ANGLE_QUIET_THRESHOLD
+          angle_quiet = abs(apply_angle) <= ANGLE_QUIET_THRESHOLD and abs(self.apply_angle_last) < ANGLE_QUIET_THRESHOLD
 
           if near_threshold and angle_quiet and self.lka_early_reset_count < EARLY_RESET_CONSECUTIVE_LIMIT:
             self.lka_resetting = True
