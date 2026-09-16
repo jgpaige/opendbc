@@ -149,13 +149,12 @@ class CarController(CarControllerBase):
           if elapsed_active_ns >= estimated_until_lockout_ns or (near_threshold and angle_quiet):
             self.lka_resetting = True
             self.lka_steer_start_ns = None
-        elif self.lka_previously_available:
+        elif self.lka_previously_available and self.lka_steer_start_ns is not None:
           self.lka_previously_available = False
-          if self.lka_steer_start_ns is not None:
-            self.lka_until_lockout_ns[self.lka_until_lockout_counter] = now_nanos - self.lka_steer_start_ns
-            self.lka_until_lockout_counter = (self.lka_until_lockout_counter + 1) % self.LKA_LOCKOUT_WINDOW_SIZE
-            self.lka_resetting = True
-            self.lka_steer_start_ns = None
+          self.lka_until_lockout_ns[self.lka_until_lockout_counter] = now_nanos - self.lka_steer_start_ns
+          self.lka_until_lockout_counter = (self.lka_until_lockout_counter + 1) % self.LKA_LOCKOUT_WINDOW_SIZE
+          self.lka_resetting = True
+          self.lka_steer_start_ns = None
         else:
           new_direction = 0
           apply_angle = 0.0 
