@@ -49,6 +49,7 @@ class FordFlags(IntFlag):
   # Static flags
   CANFD = 1
   ALLOW_NON_ADAPTIVE = 2
+  LAT_CTL_CANFD = 4
 
 
 class RADAR:
@@ -106,7 +107,7 @@ class FordNoRadarPlatformConfig(FordPlatformConfig):
 
   def init(self):
     super().init()
-    self.flags |= FordFlags.ALLOW_NON_ADAPTIVE
+    self.flags |= FordFlags.ALLOW_NON_ADAPTIVE | FordFlags.LAT_CTL_CANFD
 
 
 @dataclass

@@ -39,7 +39,7 @@ def apply_ford_angle(desired_angle, CS):
 
 
 class CarController(CarControllerBase):
-  LKA_LOCKOUT_WINDOW_SIZE = 30
+  LKA_LOCKOUT_WINDOW_SIZE = 10
 
   def __init__(self, dbc_names, CP):
     super().__init__(dbc_names, CP)
@@ -110,7 +110,7 @@ class CarController(CarControllerBase):
                                                                           0., CC.latActive, CarControllerParams.STEER_STEP)
       self.apply_curvature_last = apply_curvature
 
-      if self.CP.flags & FordFlags.CANFD:
+      if self.CP.flags & FordFlags.CANFD or self.CP.flags & FordFlags.LAT_CTL_CANFD:
         # TODO: extended mode
         # Ford uses four individual signals to dictate how to drive to the car. Curvature alone (limited to 0.02 m^-1)
         # can actuate the steering for a large portion of any lateral movements. However, in order to get further control on
@@ -119,7 +119,8 @@ class CarController(CarControllerBase):
         # https://www.f150gen14.com/forum/threads/introducing-bluepilot-a-ford-specific-fork-for-comma3x-openpilot.24241/#post-457706
         mode = 1 if CC.latActive else 0
         counter = (self.frame // CarControllerParams.STEER_STEP) % 0x10
-        can_sends.append(fordcan.create_lat_ctl2_msg(self.packer, self.CAN, mode, 0., 0., -self.apply_curvature_last, 0., counter))
+        addr, dat, _bus = fordcan.create_lat_ctl2_msg(self.packer, self.CAN, mode, 0., 0., -self.apply_curvature_last, 0., counter)
+        can_sends.append((addr, dat, 4))  # relay bus -> picand -> Pico -> CAN-FD
       else:
         can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, 0., 0., -self.apply_curvature_last, 0.))
 
