@@ -57,8 +57,7 @@ class CarInterface(CarInterfaceBase):
       ret.openpilotLongitudinalControl = True
 
     if candidate == CAR.FORD_BRONCO_MK6:
-      pass
-      # ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.ALLOW_LKA_ACTION.value
+      ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.ALLOW_LKA_ACTION.value
 
     if ret.flags & FordFlags.CANFD:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.CANFD.value
