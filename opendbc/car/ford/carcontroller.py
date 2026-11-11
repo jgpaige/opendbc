@@ -39,7 +39,7 @@ def apply_ford_angle(desired_angle, CS):
 
 
 class CarController(CarControllerBase):
-  LKA_LOCKOUT_WINDOW_SIZE = 30
+  LKA_LOCKOUT_ALPHA = 0.18   # EWMA smoothing; alpha = 2/(N+1), so 0.18 ≈ a 10-wide window
 
   def __init__(self, dbc_names, CP):
     super().__init__(dbc_names, CP)
@@ -63,8 +63,7 @@ class CarController(CarControllerBase):
     self.apply_curvature_last = 0
     self.apply_angle_last = 0.0
     self.anti_overshoot_curvature_last = 0
-    self.lka_until_lockout_ns = [10_000_000_000 for i in range(self.LKA_LOCKOUT_WINDOW_SIZE)]
-    self.lka_until_lockout_counter = 0
+    self.est_until_lockout_ns = 10_000_000_000   # seed 10s
 
   def update(self, CC, CS, now_nanos):
     can_sends = []
@@ -134,7 +133,7 @@ class CarController(CarControllerBase):
     EARLY_RESET_FRACTION = 0.6 # when lka is sending low values near this percent to lockout
     EARLY_RESET_CONSECUTIVE_LIMIT = 5
 
-    estimated_until_lockout_ns = sum(self.lka_until_lockout_ns) / self.LKA_LOCKOUT_WINDOW_SIZE
+    estimated_until_lockout_ns = self.est_until_lockout_ns
 
     # send steer msg at 33Hz
     if (self.frame % CarControllerParams.LKA_STEP) == 0:
@@ -158,8 +157,8 @@ class CarController(CarControllerBase):
             self.lka_early_reset_count += 1
         elif self.lka_previously_available and self.lka_steer_start_ns is not None:
           self.lka_previously_available = False
-          self.lka_until_lockout_ns[self.lka_until_lockout_counter] = now_nanos - self.lka_steer_start_ns
-          self.lka_until_lockout_counter = (self.lka_until_lockout_counter + 1) % self.LKA_LOCKOUT_WINDOW_SIZE
+          sample = min(now_nanos - self.lka_steer_start_ns, 2 * self.est_until_lockout_ns)
+          self.est_until_lockout_ns = self.LKA_LOCKOUT_ALPHA * sample + (1 - self.LKA_LOCKOUT_ALPHA) * self.est_until_lockout_ns
           self.lka_resetting = True
           self.lka_steer_start_ns = None
           self.lka_early_reset_count = 0
